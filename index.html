@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi GPS Kustom</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            min-height: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Formulir Absensi dengan Deteksi GPS</h2>
+
+    <div id="status">Memuat...</div>
+
+    <form id="attendanceForm">
+        <label for="nama">Nama Lengkap:</label>
+        <input type="text" id="nama" name="nama" required>
+
+        <label for="idKaryawan">ID Karyawan/NIM:</label>
+        <input type="text" id="idKaryawan" name="idKaryawan" required>
+
+        <label for="statusAbsen">Status Absensi:</label>
+        <select id="statusAbsen" name="statusAbsen">
+            <option value="Hadir">Hadir</option>
+            <option value="Izin">Izin</option>
+            <option value="Sakit">Sakit</option>
+        </select>
+
+        <input type="hidden" id="latitude" name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+
+        <button type="submit" id="submitBtn" disabled>Absen Sekarang</button>
+    </form>
+
+    <script>
+        // *** GANTI DENGAN URL APLIKASI WEB GAS ANDA! ***
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxT67heP7JHbRMK6VwKBDA3D9tjlrflEJ8qwpAiWVwg_7rRiJoLb_xxXsLIoAy9bWlMYA/exec';
+        // **********************************************
+
+        const statusDiv = document.getElementById('status');
+        const submitBtn = document.getElementById('submitBtn');
+        const latitudeInput = document.getElementById('latitude');
+        const longitudeInput = document.getElementById('longitude');
+        const form = document.getElementById('attendanceForm');
+
+        // 1. Ambil Geolokasi dari Browser
+        function getLocation() {
+            statusDiv.innerHTML = 'Meminta izin lokasi...';
+            submitBtn.disabled = true;
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    showPosition,
+                    showError, {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                }
+                );
+            } else {
+                statusDiv.innerHTML = "Geolocation tidak didukung oleh browser ini.";
+            }
+        }
+
+        // 2. Sukses mendapatkan lokasi
+        function showPosition(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            // Masukkan lokasi ke field tersembunyi
+            latitudeInput.value = lat;
+            longitudeInput.value = lon;
+
+            statusDiv.innerHTML = `✅ Lokasi terdeteksi! Latitude: ${lat}, Longitude: ${lon}. <br> Silakan klik 'Absen Sekarang'.`;
+            submitBtn.disabled = false;
+        }
+
+        // 3. Gagal mendapatkan lokasi
+        function showError(error) {
+            let message;
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    message = "❌ Izin lokasi ditolak oleh pengguna.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = "❌ Informasi lokasi tidak tersedia.";
+                    break;
+                case error.TIMEOUT:
+                    message = "❌ Permintaan lokasi timeout.";
+                    break;
+                case error.UNKNOWN_ERROR:
+                    message = "❌ Terjadi kesalahan yang tidak diketahui.";
+                    break;
+            }
+            statusDiv.innerHTML = message + "<br> Silakan coba muat ulang atau periksa pengaturan lokasi Anda.";
+            submitBtn.disabled = true;
+
+            // Jika gagal, set nilai N/A agar form tetap bisa dikirim jika perlu
+            latitudeInput.value = "Gagal";
+            longitudeInput.value = "Gagal";
+        }
+
+        // 4. Kirim data ke Google Apps Script (GAS)
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            statusDiv.innerHTML = 'Mengirim data absensi...';
+            submitBtn.disabled = true;
+
+            const formData = new FormData(form);
+            const data = new URLSearchParams(formData).toString();
+
+            fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: data,
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+            })
+                .then(response => response.text())
+                .then(result => {
+                    statusDiv.innerHTML = `⭐ ${result}`;
+                    form.reset(); // Reset form setelah sukses
+                    getLocation(); // Muat ulang lokasi untuk absensi berikutnya
+                })
+                .catch(error => {
+                    statusDiv.innerHTML = `⚠️ Kesalahan saat mengirim: ${error.message}`;
+                    submitBtn.disabled = false;
+                });
+        });
+
+        // Panggil fungsi getLocation saat halaman dimuat
+        window.onload = getLocation;
+    </script>
+</body>
+
+</html>
